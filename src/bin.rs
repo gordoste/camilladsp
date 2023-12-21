@@ -292,12 +292,14 @@ fn run(
                                 barrier.wait();
                             }
                             debug!("Wait for capture thread to exit..");
+                            let resume = message.eq(&String::from("__RESUME__"));
                             status_structs.status.write().stop_reason = StopReason::PlaybackError(message);
                             cap_handle.join().unwrap();
                             {
                                 let mut active_cfg_shared = shared_configs.active.lock();
                                 let mut prev_cfg_shared = shared_configs.previous.lock();
-                                *active_cfg_shared = None;
+                                if resume  { debug!("Resume detected."); }
+                                else { *active_cfg_shared = None; }
                                 *prev_cfg_shared = Some(active_config);
                             }
                             trace!("All threads stopped, returning");

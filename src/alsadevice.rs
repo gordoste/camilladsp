@@ -112,6 +112,7 @@ enum CaptureResult {
 enum PlaybackResult {
     Normal,
     Stalled,
+    Xrun,
 }
 
 /// Play a buffer.
@@ -135,9 +136,8 @@ fn play_buffer(
         );
         return Err(Box::new(nixerr));
     } else if playback_state == alsa_sys::SND_PCM_STATE_XRUN as i32 {
-        warn!("PB: Prepare playback after buffer underrun");
-        pcmdevice.prepare()?;
-        buf_manager.sleep_for_target_delay(millis_per_frame);
+        warn!("PB: Ending playback after buffer underrun");
+        return Ok(PlaybackResult::Xrun);
     } else if playback_state == alsa_sys::SND_PCM_STATE_PREPARED as i32 {
         info!("PB: Starting playback from Prepared state");
         buf_manager.sleep_for_target_delay(millis_per_frame);
@@ -509,6 +509,14 @@ fn playback_loop_bytes(
                             };
                         }
                         true
+                    }
+                    Ok(PlaybackResult::Xrun) => {
+                        debug!("Reporting xrun to controller");
+                        channels
+                            .status
+                            .send(StatusMessage::PlaybackError("__RESUME__".to_string()))
+                            .unwrap_or(());
+                        device_stalled
                     }
                     Err(msg) => {
                         channels
